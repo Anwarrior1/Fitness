@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calories and macros calculator</title>
+<style>
+:root{
+  --bg-light: #d9dadb;
+  --bg-dark: #f0f0f0;
+  --blue-main: #2f4b66;
+  --blue-light: #3d5f85;
+  --ink: #2f2f2f;
+  --ink-dim: #6c6c6c;
+  --border: #c0c0c0;
+  --danger: #e05a5a;
+}
+*{box-sizing:border-box;}
+html, body {
+  margin:0;
+  background: linear-gradient(180deg, var(--bg-light), var(--bg-dark) 60%);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+}
+.wrap {
+  max-width: 1100px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.logo img {
+  height: 50px;
+}
+h1 {
+  margin: 0;
+  font-size: 24px;
+  color: var(--blue-main);
+}
+.muted { color: var(--ink-dim); font-size: 13px; }
+
+.card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  margin-bottom: 24px;
+}
+.grid {
+  display: grid;
+  gap: 14px;
+}
+@media(min-width: 900px) {
+  .grid { grid-template-columns: 1.3fr .7fr; }
+}
+
+form .row {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap:10px;
+}
+label {
+  display:block;
+  margin-bottom:4px;
+  font-size:13px;
+  color: var(--ink-dim);
+}
+input, select, button {
+  width:100%;
+  padding:12px;
+  font-size:14px;
+  color: var(--ink);
+  background: #fff;
+  border:1px solid var(--border);
+  border-radius: 8px;
+}
+input:focus, select:focus {
+  border-color: var(--blue-light);
+  box-shadow: 0 0 0 3px rgba(63,100,140,0.15);
+  outline:none;
+}
+.col-6 { grid-column: span 6; }
+.col-4 { grid-column: span 4; }
+.col-12 { grid-column: span 12; }
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.btn {
+  cursor: pointer;
+  font-weight: 600;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 8px;
+}
+.primary { background: var(--blue-main); color: #fff; }
+.soft { background: #f7f7f7; color: var(--ink); border: 1px solid var(--border); }
+.danger { background: var(--danger); color: #fff; }
+
+.result { display: none; gap: 12px; margin-top: 20px; }
+.kpi {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+}
+.kpi .box {
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+.kpi h3 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-dim);
+  font-weight: normal;
+}
+.kpi b {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+  color: var(--blue-main);
+}
+.pill {
+  display:inline-block;
+  margin-top:4px;
+  padding:3px 8px;
+  font-size:12px;
+  color: var(--blue-main);
+  border-radius: 999px;
+  border:1px solid var(--border);
+  background: #eef2f7;
+}
+
+table {
+  width:100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+th, td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  font-size: 14px;
+}
+th {
+  background: var(--blue-main);
+  color: #fff;
+}
+tr:last-child td {
+  border-bottom: none;
+}
+
+.clients .empty {
+  border: 1px dashed var(--border);
+  padding: 16px;
+  border-radius: 8px;
+  color: var(--ink-dim);
+  text-align: center;
+}
+
+footer {
+  margin-top: 28px;
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><img src="https://i.postimg.cc/nVkyzLwV/Black-and-White-Flat-Minimalist-Media-Journalist-Logo.png" alt="Logo"></div>
+    <div>
+      <h1>مولّد خطط الـFitness</h1>
+      <div class="muted">أدخل بيانات العميل واحصل على السعرات والماكروز</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <form id="planForm" novalidate>
+        <div class="row">
+          <div class="col-6"><label for="name">اسم العميل</label><input id="name" placeholder="مثال: أنور النعاس"></div>
+          <div class="col-6"><label for="email">إيميل (اختياري)</label><input id="email" type="email" placeholder="example@mail.com"></div>
+          <div class="col-4"><label for="sex">الجنس</label><select id="sex"><option value="male">ذكر</option><option value="female">أنثى</option></select></div>
+          <div class="col-4"><label for="age">العمر (سنة)</label><input id="age" type="number" min="12" max="90" placeholder="مثال: 28"></div>
+          <div class="col-4"><label for="height">الطول (سم)</label><input id="height" type="number" min="120" max="230" placeholder="مثال: 175"></div>
+          <div class="col-4"><label for="weight">الوزن (كجم)</label><input id="weight" type="number" step="0.1" min="35" max="250" placeholder="مثال: 78.5"></div>
+          <div class="col-4"><label for="activity">النشاط</label>
+            <select id="activity">
+              <option value="1.2">خامل</option>
+              <option value="1.375">خفيف</option>
+              <option value="1.55" selected>متوسط</option>
+              <option value="1.725">عالٍ</option>
+              <option value="1.9">رياضي جدًا</option>
+            </select>
+          </div>
+          <div class="col-4"><label for="goal">الهدف</label>
+            <select id="goal">
+              <option value="fatloss">fat loss </option>
+              <option value="musclegain"> Muscle gain</option>
+              <option value="recomp" selected>Body Recomposition</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <div class="actions">
+              <button class="btn primary" type="submit">توليد الخطة</button>
+              <button class="btn soft" type="button" id="saveBtn" disabled>حفظ العميل</button>
+              <button class="btn danger" type="button" id="resetBtn">تفريغ الحقول</button>
+            </div>
+            <div class="muted">المعادلات: Mifflin-St Jeor للـBMR + عوامل النشاط</div>
+          </div>
+        </div>
+      </form>
+
+      <div class="result" id="result">
+        <div class="kpi">
+          <div class="box"><h3>BMR</h3><b id="bmrOut">-</b></div>
+          <div class="box"><h3>TDEE</h3><b id="tdeeOut">-</b></div>
+          <div class="box"><h3>السعرات الموصى بها</h3><b id="calOut">-</b><span class="pill" id="goalTag"></span></div>
+          <div class="box"><h3>نصيحة</h3><div class="muted" id="tipOut"></div></div>
+        </div>
+        <h3 style="margin-top:16px;">تفصيل الماكروز</h3>
+        <table>
+          <thead><tr><th>العنصر</th><th>جرام</th><th>سعرات</th><th>%</th></tr></thead>
+          <tbody id="macroBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="card clients">
+      <h3>قائمة العملاء</h3>
+      <div class="muted">التخزين محلي فقط.</div>
+      <div id="clientsWrap" class="empty">لا توجد سجلات.</div>
+    </aside>
+  </div>
+
+  <footer>&copy; مولّد خطط Fitness — للتوجيه فقط.</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const round = x => Math.round(x);
+
+const tips = {
+  fatloss: "بروتين عالي، ألياف، مدد الحركة اليومية.",
+  musclegain: "فائض خفيف + مقاومة 3-5 أيام.",
+  recomp: "صيانة مع بروتين مرتفع وتمرين تقدّمي."
+};
+
+function calcBMR(sex, weight, height, age) {
+  const base = 10*weight + 6.25*height - 5*age;
+  return sex === 'male' ? base + 5 : base - 161;
+}
+function adjustedCalories(tdee, goal) {
+  return goal==='fatloss' ? tdee*0.8
+       : goal==='musclegain' ? tdee*1.1
+       : tdee;
+}
+function calcMacros(goal, weight, cal) {
+  let pPerKg;
+  if (goal === 'fatloss' || goal === 'recomp') {
+    pPerKg = 2.0;
+  } else if (goal === 'musclegain') {
+    pPerKg = 1.6;
+  }
+  const proteinG = pPerKg * weight;
+  const proteinKcal = proteinG * 4;
+  const minFatG = 0.6 * weight;
+  let fatKcal = cal * 0.3;
+  let fatG = Math.max(minFatG, fatKcal / 9);
+  fatKcal = fatG * 9;
+  let carbsKcal = cal - (proteinKcal + fatKcal);
+  if (carbsKcal < 0) {
+    fatKcal = Math.max(0, fatKcal + carbsKcal);
+    fatG = fatKcal / 9;
+    carbsKcal = 0;
+  }
+  const carbsG = carbsKcal / 4;
+  const pct = k => cal > 0 ? (k / cal * 100).toFixed(0) : 0;
+  return {
+    proteinG: round(proteinG),
+    carbsG: round(carbsG),
+    fatG: round(fatG),
+    proteinKcal: round(proteinKcal),
+    carbsKcal: round(carbsKcal),
+    fatKcal: round(fatKcal),
+    pctProtein: pct(proteinKcal),
+    pctCarb: pct(carbsKcal),
+    pctFat: pct(fatKcal)
+  };
+}
+
+function renderMacros(macros, cal) {
+  $('macroBody').innerHTML = [
+    {label:'بروتين', g:macros.proteinG, kcal:macros.proteinKcal, pct:macros.pctProtein},
+    {label:'كربوهيدرات',g:macros.carbsG, kcal:macros.carbsKcal, pct:macros.pctCarb},
+    {label:'دهون', g:macros.fatG, kcal:macros.fatKcal, pct:macros.pctFat}
+  ].map(r => `
+    <tr>
+      <td>${r.label}</td>
+      <td><b>${r.g}</b> جم</td>
+      <td>${r.kcal} kcal</td>
+      <td>${r.pct}%</td>
+    </tr>
+  `).join('');
+  $('calOut').textContent = round(cal) + ' kcal/يوم';
+}
+
+function loadClients() {
+  const arr = JSON.parse(localStorage.getItem('fitness_clients') || '[]');
+  return Array.isArray(arr) ? arr : [];
+}
+function saveClients(arr) {
+  localStorage.setItem('fitness_clients', JSON.stringify(arr));
+}
+
+function renderClients() {
+  const sessions = loadClients();
+  const wrap = $('clientsWrap');
+  if (!sessions.length) {
+    wrap.className = 'empty'; wrap.textContent = 'لا توجد سجلات.';
+    return;
+  }
+  wrap.className = '';
+  wrap.innerHTML = `
+    <table>
+      <thead>
+        <tr><th>الاسم</th><th>العمر</th><th>الطول</th><th>الوزن</th><th>الهدف</th><th>سعرات</th><th>إجراءات</th></tr>
+      </thead>
+      <tbody>
+        ${sessions.map((c,i) => `
+          <tr>
+            <td>${c.name||'-'}</td>
+            <td>${c.age}</td>
+            <td>${c.height} سم</td>
+            <td>${c.weight} كجم</td>
+            <td>${c.goal==='fatloss'?'خسارة الدهون':c.goal==='musclegain'?'بناء العضلات':'Recomp'}</td>
+            <td>${round(c.calories)} kcal</td>
+            <td>
+              <button class="btn soft" data-load="${i}">تحميل</button>
+              <button class="btn danger" data-del="${i}">حذف</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  wrap.querySelectorAll('[data-del]').forEach(btn => {
+    btn.onclick = () => {
+      const idx = +btn.dataset.del;
+      const arr = loadClients();
+      arr.splice(idx,1);
+      saveClients(arr);
+      renderClients();
+    };
+  });
+  wrap.querySelectorAll('[data-load]').forEach(btn => {
+    btn.onclick = () => {
+      const idx = +btn.dataset.load;
+      const c = loadClients()[idx];
+      ['name','email','sex','age','height','weight','activity','goal'].forEach(id => {
+        $(id).value = c[id];
+      });
+      computePlan();
+      scrollTo({top:0, behavior:'smooth'});
+    };
+  });
+}
+
+function computePlan(e) {
+  e?.preventDefault();
+  const fields = ['name','email','sex','age','height','weight','activity','goal'];
+  const vals = fields.map(id => $(id).value);
+  const [name, email, sex, age, height, weight, activity, goal] = vals;
+  if (![age, height, weight].every(v => !isNaN(+v) && +v>0)) {
+    alert('تأكد من إدخال العمر والطول والوزن.');
+    return;
+  }
+  const bmr = calcBMR(sex, +weight, +height, +age);
+  const tdee = bmr * +activity;
+  const calories = adjustedCalories(tdee, goal);
+  const macros = calcMacros(goal, +weight, calories);
+  $('bmrOut').textContent = round(bmr);
+  $('tdeeOut').textContent = round(tdee);
+  $('goalTag').textContent = goal==='fatloss'?'خسارة الدهون':goal==='musclegain'?'بناء العضلات':'Recomp';
+  $('tipOut').textContent = tips[goal];
+  renderMacros(macros, calories);
+  $('result').style.display = 'grid';
+  $('saveBtn').disabled = false;
+  $('planForm').dataset.lastPlan = JSON.stringify({name, email, sex, age, height, weight, activity, goal, calories});
+}
+
+function resetForm() {
+  $('planForm').reset();
+  $('result').style.display = 'none';
+  $('saveBtn').disabled = true;
+  delete $('planForm').dataset.lastPlan;
+}
+
+function saveClient() {
+  const data = $('planForm').dataset.lastPlan;
+  if (!data) { alert('ولّد الخطة أولًا.'); return; }
+  const p = JSON.parse(data);
+  const arr = loadClients();
+  arr.unshift(p);
+  saveClients(arr);
+  renderClients();
+  $('saveBtn').disabled = true;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  $('planForm').addEventListener('submit', computePlan);
+  $('resetBtn').onclick = resetForm;
+  $('saveBtn').onclick = saveClient;
+  renderClients();
+});
+</script>
+</body>
+</html>
