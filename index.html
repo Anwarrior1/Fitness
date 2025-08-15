@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -313,7 +312,8 @@ function adjustedCalories(tdee, goal) {
 function calcMacros(goal, weight, cal) {
   let pPerKg;
   if (goal === 'fatloss' || goal === 'recomp') {
-    pPerKg = 2.0;
+    // التعديل هنا: إذا كان النشاط خامل (1.2) نستخدم 1 جرام/كجم، وإلا 2 جرام/كجم
+    pPerKg = ($('activity').value === '1.2') ? 1.0 : 2.0;
   } else if (goal === 'musclegain') {
     pPerKg = 1.6;
   }
