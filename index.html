@@ -176,6 +176,22 @@ footer {
   color: var(--ink-dim);
   font-size: 12px;
 }
+
+/* Styles for macro inputs */
+#calOut, #proteinG, #carbsG, #fatG {
+  width: 100%;
+  text-align: center;
+  font-weight: bold;
+  color: var(--blue-main);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+#proteinG, #carbsG, #fatG {
+  padding: 4px;
+  border-radius: 4px;
+}
 </style>
 </head>
 <body>
@@ -231,7 +247,7 @@ footer {
           <div class="box"><h3>TDEE</h3><b id="tdeeOut">-</b></div>
           <div class="box">
             <h3>السعرات المخصصة للعميل</h3>
-            <input id="calOut" type="number" placeholder="أدخل السعرات يدويًا" style="width: 100%; text-align: center; font-weight: bold; color: var(--blue-main); border: 1px solid var(--border); border-radius: 8px; padding: 8px;">
+            <input id="calOut" type="number" placeholder="أدخل السعرات يدويًا">
             <span class="pill" id="goalTag"></span>
           </div>
           <div class="box"><h3>نصيحة</h3><div class="muted" id="tipOut"></div></div>
@@ -239,7 +255,26 @@ footer {
         <h3 style="margin-top:16px;">تفصيل الماكروز</h3>
         <table>
           <thead><tr><th>العنصر</th><th>جرام</th><th>سعرات</th><th>%</th></tr></thead>
-          <tbody id="macroBody"></tbody>
+          <tbody id="macroBody">
+            <tr>
+              <td>بروتين</td>
+              <td><input id="proteinG" type="number" placeholder="جرام"></td>
+              <td id="proteinKcal">-</td>
+              <td id="proteinPct">-</td>
+            </tr>
+            <tr>
+              <td>كربوهيدرات</td>
+              <td><input id="carbsG" type="number" placeholder="جرام"></td>
+              <td id="carbsKcal">-</td>
+              <td id="carbsPct">-</td>
+            </tr>
+            <tr>
+              <td>دهون</td>
+              <td><input id="fatG" type="number" placeholder="جرام"></td>
+              <td id="fatKcal">-</td>
+              <td id="fatPct">-</td>
+            </tr>
+          </tbody>
         </table>
       </div>
     </section>
@@ -307,19 +342,42 @@ function calcMacros(goal, weight, cal) {
   };
 }
 
+function updateMacrosFromManualInput() {
+  const cal = parseFloat($('calOut').value) || 0;
+  const proteinG = parseFloat($('proteinG').value) || 0;
+  const carbsG = parseFloat($('carbsG').value) || 0;
+  const fatG = parseFloat($('fatG').value) || 0;
+
+  const proteinKcal = proteinG * 4;
+  const carbsKcal = carbsG * 4;
+  const fatKcal = fatG * 9;
+  
+  $('proteinKcal').textContent = round(proteinKcal);
+  $('carbsKcal').textContent = round(carbsKcal);
+  $('fatKcal').textContent = round(fatKcal);
+  
+  $('proteinPct').textContent = cal > 0 ? round(proteinKcal / cal * 100) + '%' : '-';
+  $('carbsPct').textContent = cal > 0 ? round(carbsKcal / cal * 100) + '%' : '-';
+  $('fatPct').textContent = cal > 0 ? round(fatKcal / cal * 100) + '%' : '-';
+}
+
 function renderMacros(macros, cal) {
-  $('macroBody').innerHTML = [
-    {label:'بروتين', g:macros.proteinG, kcal:macros.proteinKcal, pct:macros.pctProtein},
-    {label:'كربوهيدرات',g:macros.carbsG, kcal:macros.carbsKcal, pct:macros.pctCarb},
-    {label:'دهون', g:macros.fatG, kcal:macros.fatKcal, pct:macros.pctFat}
-  ].map(r => `
-    <tr>
-      <td>${r.label}</td>
-      <td><b>${r.g}</b> جم</td>
-      <td>${r.kcal} kcal</td>
-      <td>${r.pct}%</td>
-    </tr>
-  `).join('');
+  $('proteinG').value = macros.proteinG;
+  $('carbsG').value = macros.carbsG;
+  $('fatG').value = macros.fatG;
+  
+  $('proteinKcal').textContent = macros.proteinKcal;
+  $('carbsKcal').textContent = macros.carbsKcal;
+  $('fatKcal').textContent = macros.fatKcal;
+  
+  $('proteinPct').textContent = macros.pctProtein + '%';
+  $('carbsPct').textContent = macros.pctCarb + '%';
+  $('fatPct').textContent = macros.pctFat + '%';
+  
+  $('proteinG').oninput = updateMacrosFromManualInput;
+  $('carbsG').oninput = updateMacrosFromManualInput;
+  $('fatG').oninput = updateMacrosFromManualInput;
+  $('calOut').oninput = updateMacrosFromManualInput;
 }
 
 function loadClients() {
@@ -398,6 +456,7 @@ function computePlan(e) {
   const macros = calcMacros(goal, +weight, calories);
   $('bmrOut').textContent = round(bmr);
   $('tdeeOut').textContent = round(tdee);
+  $('calOut').value = round(calories);
   $('goalTag').textContent = goal==='fatloss'?'خسارة الدهون':goal==='musclegain'?'بناء العضلات':'Recomp';
   $('tipOut').textContent = tips[goal];
   renderMacros(macros, calories);
@@ -418,11 +477,20 @@ function saveClient() {
   if (!data) { alert('ولّد الخطة أولًا.'); return; }
   const p = JSON.parse(data);
 
-  // ✅ تعديل وحيد: اعتماد السعرات من الحقل اليدوي قبل الحفظ
   const manualCal = parseFloat($('calOut').value);
-  if (!isNaN(manualCal) && manualCal > 0) {
+  const proteinG = parseFloat($('proteinG').value);
+  const carbsG = parseFloat($('carbsG').value);
+  const fatG = parseFloat($('fatG').value);
+
+  if (!isNaN(manualCal)) {
     p.calories = manualCal;
   }
+  
+  p.manualMacros = {
+    proteinG: !isNaN(proteinG) ? proteinG : null,
+    carbsG: !isNaN(carbsG) ? carbsG : null,
+    fatG: !isNaN(fatG) ? fatG : null
+  };
 
   const arr = loadClients();
   arr.unshift(p);
