@@ -178,7 +178,7 @@ footer {
 }
 
 /* Styles for macro inputs */
-#calOut, #proteinG, #carbsG, #fatG {
+#calOut, #proteinG, #carbsG, #fatG, #proteinPct, #carbsPct, #fatPct {
   width: 100%;
   text-align: center;
   font-weight: bold;
@@ -188,7 +188,7 @@ footer {
   padding: 8px;
 }
 
-#proteinG, #carbsG, #fatG {
+#proteinG, #carbsG, #fatG, #proteinPct, #carbsPct, #fatPct {
   padding: 4px;
   border-radius: 4px;
 }
@@ -261,19 +261,24 @@ footer {
               <td>بروتين</td>
               <td><input id="proteinG" type="number" placeholder="جرام"></td>
               <td id="proteinKcal">-</td>
-              <td id="proteinPct">-</td>
+              <td><input id="proteinPct" type="number" placeholder="%" min="0" max="100"></td>
             </tr>
             <tr>
               <td>كربوهيدرات</td>
               <td><input id="carbsG" type="number" placeholder="جرام"></td>
               <td id="carbsKcal">-</td>
-              <td id="carbsPct">-</td>
+              <td><input id="carbsPct" type="number" placeholder="%" min="0" max="100"></td>
             </tr>
             <tr>
               <td>دهون</td>
               <td><input id="fatG" type="number" placeholder="جرام"></td>
               <td id="fatKcal">-</td>
-              <td id="fatPct">-</td>
+              <td><input id="fatPct" type="number" placeholder="%" min="0" max="100"></td>
+            </tr>
+            <tr>
+              <td colspan="2"><strong>المجموع</strong></td>
+              <td id="totalKcal">-</td>
+              <td id="totalPct">100%</td>
             </tr>
           </tbody>
         </table>
@@ -312,7 +317,6 @@ function adjustedCalories(tdee, goal) {
 function calcMacros(goal, weight, cal) {
   let pPerKg;
   if (goal === 'fatloss' || goal === 'recomp') {
-    // التعديل هنا: إذا كان النشاط خامل (1.2) نستخدم 1 جرام/كجم، وإلا 2 جرام/كجم
     pPerKg = ($('activity').value === '1.2') ? 1.0 : 2.0;
   } else if (goal === 'musclegain') {
     pPerKg = 1.6;
@@ -344,7 +348,7 @@ function calcMacros(goal, weight, cal) {
   };
 }
 
-function updateMacrosFromManualInput() {
+function updateMacrosFromGrams() {
   const cal = parseFloat($('calOut').value) || 0;
   const proteinG = parseFloat($('proteinG').value) || 0;
   const carbsG = parseFloat($('carbsG').value) || 0;
@@ -353,14 +357,97 @@ function updateMacrosFromManualInput() {
   const proteinKcal = proteinG * 4;
   const carbsKcal = carbsG * 4;
   const fatKcal = fatG * 9;
+  const totalKcal = proteinKcal + carbsKcal + fatKcal;
+  
+  // Update calories if total doesn't match
+  if (Math.abs(totalKcal - cal) > 10) {
+    $('calOut').value = round(totalKcal);
+  }
   
   $('proteinKcal').textContent = round(proteinKcal);
   $('carbsKcal').textContent = round(carbsKcal);
   $('fatKcal').textContent = round(fatKcal);
+  $('totalKcal').textContent = round(totalKcal);
   
-  $('proteinPct').textContent = cal > 0 ? round(proteinKcal / cal * 100) + '%' : '-';
-  $('carbsPct').textContent = cal > 0 ? round(carbsKcal / cal * 100) + '%' : '-';
-  $('fatPct').textContent = cal > 0 ? round(fatKcal / cal * 100) + '%' : '-';
+  const currentCal = parseFloat($('calOut').value) || totalKcal;
+  
+  $('proteinPct').value = currentCal > 0 ? round(proteinKcal / currentCal * 100) : '';
+  $('carbsPct').value = currentCal > 0 ? round(carbsKcal / currentCal * 100) : '';
+  $('fatPct').value = currentCal > 0 ? round(fatKcal / currentCal * 100) : '';
+}
+
+function updateMacrosFromPct() {
+  const cal = parseFloat($('calOut').value) || 0;
+  const proteinPct = parseFloat($('proteinPct').value) || 0;
+  const carbsPct = parseFloat($('carbsPct').value) || 0;
+  const fatPct = parseFloat($('fatPct').value) || 0;
+
+  // Ensure total percentage is 100%
+  const totalPct = proteinPct + carbsPct + fatPct;
+  if (totalPct !== 100 && totalPct > 0) {
+    alert('يجب أن يكون مجموع النسب المئوية 100%');
+    return;
+  }
+
+  const proteinKcal = cal * proteinPct / 100;
+  const carbsKcal = cal * carbsPct / 100;
+  const fatKcal = cal * fatPct / 100;
+  const totalKcal = proteinKcal + carbsKcal + fatKcal;
+  
+  $('proteinG').value = round(proteinKcal / 4);
+  $('carbsG').value = round(carbsKcal / 4);
+  $('fatG').value = round(fatKcal / 9);
+  
+  $('proteinKcal').textContent = round(proteinKcal);
+  $('carbsKcal').textContent = round(carbsKcal);
+  $('fatKcal').textContent = round(fatKcal);
+  $('totalKcal').textContent = round(totalKcal);
+}
+
+function updateMacrosFromCalories() {
+  const cal = parseFloat($('calOut').value) || 0;
+  const proteinG = parseFloat($('proteinG').value) || 0;
+  
+  // حساب سعرات البروتين (ثابتة)
+  const proteinKcal = proteinG * 4;
+  
+  // حساب الدهون (نحافظ على الجرامات الحالية أو 0.6 جم لكل كجم وزن)
+  const weight = parseFloat($('weight').value) || 0;
+  let fatG = parseFloat($('fatG').value) || Math.max(0.6 * weight, cal * 0.3 / 9);
+  let fatKcal = fatG * 9;
+  
+  // حساب الكربوهيدرات بناءً على السعرات المتبقية
+  let carbsKcal = cal - (proteinKcal + fatKcal);
+  let carbsG = carbsKcal / 4;
+  
+  // إذا كانت الكربوهيدرات سالبة، نضطر لتقليل الدهون
+  if (carbsKcal < 0) {
+    fatKcal = Math.max(0, fatKcal + carbsKcal);
+    fatG = fatKcal / 9;
+    carbsKcal = 0;
+    carbsG = 0;
+  }
+  
+  // تحديث القيم في الواجهة
+  $('proteinG').value = round(proteinG);
+  $('fatG').value = round(fatG);
+  $('carbsG').value = round(carbsG);
+  
+  $('proteinKcal').textContent = round(proteinKcal);
+  $('carbsKcal').textContent = round(carbsKcal);
+  $('fatKcal').textContent = round(fatKcal);
+  $('totalKcal').textContent = round(cal);
+  
+  // تحديث النسب المئوية
+  if (cal > 0) {
+    $('proteinPct').value = round(proteinKcal / cal * 100);
+    $('fatPct').value = round(fatKcal / cal * 100);
+    $('carbsPct').value = round(carbsKcal / cal * 100);
+  } else {
+    $('proteinPct').value = '';
+    $('fatPct').value = '';
+    $('carbsPct').value = '';
+  }
 }
 
 function renderMacros(macros, cal) {
@@ -371,15 +458,22 @@ function renderMacros(macros, cal) {
   $('proteinKcal').textContent = macros.proteinKcal;
   $('carbsKcal').textContent = macros.carbsKcal;
   $('fatKcal').textContent = macros.fatKcal;
+  $('totalKcal').textContent = round(macros.proteinKcal + macros.carbsKcal + macros.fatKcal);
   
-  $('proteinPct').textContent = macros.pctProtein + '%';
-  $('carbsPct').textContent = macros.pctCarb + '%';
-  $('fatPct').textContent = macros.pctFat + '%';
+  $('proteinPct').value = macros.pctProtein;
+  $('carbsPct').value = macros.pctCarb;
+  $('fatPct').value = macros.pctFat;
   
-  $('proteinG').oninput = updateMacrosFromManualInput;
-  $('carbsG').oninput = updateMacrosFromManualInput;
-  $('fatG').oninput = updateMacrosFromManualInput;
-  $('calOut').oninput = updateMacrosFromManualInput;
+  // Event listeners
+  $('proteinG').oninput = updateMacrosFromGrams;
+  $('carbsG').oninput = updateMacrosFromGrams;
+  $('fatG').oninput = updateMacrosFromGrams;
+  
+  $('proteinPct').oninput = updateMacrosFromPct;
+  $('carbsPct').oninput = updateMacrosFromPct;
+  $('fatPct').oninput = updateMacrosFromPct;
+  
+  $('calOut').oninput = updateMacrosFromCalories;
 }
 
 function loadClients() {
@@ -483,6 +577,9 @@ function saveClient() {
   const proteinG = parseFloat($('proteinG').value);
   const carbsG = parseFloat($('carbsG').value);
   const fatG = parseFloat($('fatG').value);
+  const proteinPct = parseFloat($('proteinPct').value);
+  const carbsPct = parseFloat($('carbsPct').value);
+  const fatPct = parseFloat($('fatPct').value);
 
   if (!isNaN(manualCal)) {
     p.calories = manualCal;
@@ -491,7 +588,10 @@ function saveClient() {
   p.manualMacros = {
     proteinG: !isNaN(proteinG) ? proteinG : null,
     carbsG: !isNaN(carbsG) ? carbsG : null,
-    fatG: !isNaN(fatG) ? fatG : null
+    fatG: !isNaN(fatG) ? fatG : null,
+    proteinPct: !isNaN(proteinPct) ? proteinPct : null,
+    carbsPct: !isNaN(carbsPct) ? carbsPct : null,
+    fatPct: !isNaN(fatPct) ? fatPct : null
   };
 
   const arr = loadClients();
