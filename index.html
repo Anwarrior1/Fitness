@@ -517,7 +517,7 @@ function login(username, password) {
 function logout() {
   localStorage.removeItem('loggedInUser');
   localStorage.removeItem('fitness_clients'); // مسح بيانات العملاء عند الخروج
-  location.reload();
+  window.location.href = window.location.href; // إعادة تحميل الصفحة بالكامل
 }
 
 function showMainContent() {
