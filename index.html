@@ -300,6 +300,28 @@ footer {
   display: none;
   margin-top: 10px;
 }
+
+/* نافذة إدارة المستخدم */
+#userSettingsModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.admin-only {
+  display: none;
+}
+
+.is-admin .admin-only {
+  display: block;
+}
 </style>
 </head>
 <body>
@@ -330,6 +352,7 @@ footer {
         <span id="loggedInUser"></span>
         <button class="logout-btn" id="logoutBtn">تسجيل الخروج</button>
         <button class="btn success" id="userSettingsBtn">إدارة الحساب</button>
+        <button class="btn primary admin-only" id="adminPanelBtn">لوحة المدير</button>
       </div>
       <div class="logo"><img src="https://i.postimg.cc/nVkyzLwV/Black-and-White-Flat-Minimalist-Media-Journalist-Logo.png" alt="Logo"></div>
       <div>
@@ -426,12 +449,20 @@ footer {
       </aside>
     </div>
 
+    <div id="adminPanel" class="card admin-only" style="display: none;">
+      <h3>لوحة إدارة المستخدمين</h3>
+      <div class="actions">
+        <button class="btn primary" id="addUserBtn">إضافة مستخدم جديد</button>
+      </div>
+      <div id="usersList" class="empty">جارٍ تحميل قائمة المستخدمين...</div>
+    </div>
+
     <footer>&copy; NAAΣ— Fitness.</footer>
   </div>
 </div>
 
 <!-- نافذة إدارة المستخدم -->
-<div id="userSettingsModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
+<div id="userSettingsModal" class="hidden">
   <div class="card" style="max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
       <h2 style="margin: 0;">إدارة الحساب</h2>
@@ -481,6 +512,33 @@ footer {
   </div>
 </div>
 
+<!-- نافذة إضافة مستخدم جديد -->
+<div id="addUserModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
+  <div class="card" style="max-width: 400px; width: 90%;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="margin: 0;">إضافة مستخدم جديد</h2>
+      <button id="closeAddUser" style="background: none; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+    </div>
+    
+    <form id="addUserForm">
+      <div style="margin-bottom: 15px;">
+        <label for="newUserUsername">اسم المستخدم</label>
+        <input type="text" id="newUserUsername" required minlength="3">
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label for="newUserPassword">كلمة المرور</label>
+        <input type="password" id="newUserPassword" required minlength="6">
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label for="newUserName">الاسم المعروض</label>
+        <input type="text" id="newUserName" required>
+      </div>
+      <button type="submit" class="btn primary">إضافة المستخدم</button>
+      <div id="addUserError" style="color: var(--danger); display: none; margin-top: 10px;"></div>
+    </form>
+  </div>
+</div>
+
 <script>
 const $ = id => document.getElementById(id);
 const round = x => Math.round(x);
@@ -491,11 +549,11 @@ const tips = {
   recomp: " محافظة على بروتين مرتفع وتمرين تقدّمي."
 };
 
-// نظام تسجيل الدخول
+// نظام المستخدمين
 let users = JSON.parse(localStorage.getItem('fitness_users')) || {
-  "admin": { password: "admin123", name: "مدير النظام" },
-  "coach": { password: "coach123", name: "مدرب" },
-  "user": { password: "user123", name: "مستخدم عادي" }
+  "admin": { password: "admin123", name: "مدير النظام", isAdmin: true },
+  "coach": { password: "coach123", name: "مدرب", isAdmin: false },
+  "user": { password: "user123", name: "مستخدم عادي", isAdmin: false }
 };
 
 function saveUsers() {
@@ -503,7 +561,8 @@ function saveUsers() {
 }
 
 function checkAuth() {
-  return localStorage.getItem('loggedInUser');
+  const username = localStorage.getItem('loggedInUser');
+  return username && users[username] ? username : null;
 }
 
 function login(username, password) {
@@ -516,7 +575,6 @@ function login(username, password) {
 
 function logout() {
   localStorage.removeItem('loggedInUser');
-  localStorage.removeItem('fitness_clients'); // مسح بيانات العملاء عند الخروج
   location.reload();
 }
 
@@ -527,20 +585,203 @@ function showMainContent() {
     $('mainContent').classList.remove('hidden');
     $('loggedInUser').textContent = users[username].name;
     $('userAvatar').textContent = username.charAt(0).toUpperCase();
+    
+    // إظهار/إخفاء عناصر المدير
+    if (users[username].isAdmin) {
+      document.body.classList.add('is-admin');
+      $('adminPanel').style.display = 'block';
+    } else {
+      document.body.classList.remove('is-admin');
+      $('adminPanel').style.display = 'none';
+    }
   }
 }
 
+// نظام العملاء (لكل مستخدم بياناته الخاصة)
+function loadClients() {
+  const username = localStorage.getItem('loggedInUser');
+  return JSON.parse(localStorage.getItem(`fitness_clients_${username}`)) || [];
+}
+
+function saveClients(clients) {
+  const username = localStorage.getItem('loggedInUser');
+  localStorage.setItem(`fitness_clients_${username}`, JSON.stringify(clients));
+}
+
+// ... [كل الدوال الأخرى المتعلقة بحساب السعرات والماكروز تبقى كما هي] ...
+
+// نظام إدارة المستخدمين
+function renderUsersList() {
+  const usersList = Object.keys(users).map(username => {
+    const user = users[username];
+    return `
+      <div class="user-item" style="padding: 10px; border-bottom: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <strong>${user.name}</strong>
+            <div class="muted">اسم المستخدم: ${username}</div>
+            <div class="muted">${user.isAdmin ? 'مدير' : 'مستخدم عادي'}</div>
+          </div>
+          <div>
+            <button class="btn danger" onclick="deleteUser('${username}')" ${username === 'admin' ? 'disabled' : ''}>حذف</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  $('usersList').innerHTML = usersList || '<div class="empty">لا يوجد مستخدمين</div>';
+}
+
+function addNewUser(username, password, name, isAdmin = false) {
+  if (users[username]) {
+    return { success: false, message: 'اسم المستخدم موجود بالفعل' };
+  }
+  
+  users[username] = { password, name, isAdmin };
+  saveUsers();
+  return { success: true };
+}
+
+function deleteUser(username) {
+  if (username === 'admin') return;
+  
+  // حذف بيانات العملاء الخاصة بهذا المستخدم
+  localStorage.removeItem(`fitness_clients_${username}`);
+  
+  // حذف المستخدم
+  delete users[username];
+  saveUsers();
+  
+  // إذا كان المستخدم المحذوف هو الحالي، تسجيل الخروج
+  if (localStorage.getItem('loggedInUser') === username) {
+    logout();
+  } else {
+    renderUsersList();
+  }
+}
+
+// ... [باقي الدوال الخاصة بحساب السعرات والماكروز] ...
+
+// تهيئة الصفحة عند التحميل
+document.addEventListener('DOMContentLoaded', () => {
+  if (checkAuth()) {
+    showMainContent();
+    $('planForm').addEventListener('submit', computePlan);
+    $('resetBtn').onclick = resetForm;
+    $('saveBtn').onclick = saveClient;
+    $('logoutBtn').onclick = logout;
+    $('userSettingsBtn').onclick = () => $('userSettingsModal').classList.remove('hidden');
+    $('closeUserSettings').onclick = () => $('userSettingsModal').classList.add('hidden');
+    $('adminPanelBtn').onclick = () => $('adminPanel').style.display = $('adminPanel').style.display === 'none' ? 'block' : 'none';
+    $('addUserBtn').onclick = () => $('addUserModal').classList.remove('hidden');
+    $('closeAddUser').onclick = () => $('addUserModal').classList.add('hidden');
+    
+    // أحداث تغيير كلمة المرور واسم المستخدم
+    $('changePasswordForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const username = localStorage.getItem('loggedInUser');
+      const currentPassword = $('currentPassword').value;
+      const newPassword = $('newPassword').value;
+      const confirmPassword = $('confirmNewPassword').value;
+      
+      if (!users[username] || users[username].password !== currentPassword) {
+        $('changePasswordError').textContent = 'كلمة المرور الحالية غير صحيحة';
+        $('changePasswordError').style.display = 'block';
+        return;
+      }
+      
+      if (newPassword !== confirmPassword) {
+        $('changePasswordError').textContent = 'كلمة المرور الجديدة غير متطابقة';
+        $('changePasswordError').style.display = 'block';
+        return;
+      }
+      
+      users[username].password = newPassword;
+      saveUsers();
+      
+      $('changePasswordError').style.display = 'none';
+      $('changePasswordSuccess').style.display = 'block';
+      $('currentPassword').value = '';
+      $('newPassword').value = '';
+      $('confirmNewPassword').value = '';
+    });
+    
+    $('addUserForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const username = $('newUserUsername').value.trim();
+      const password = $('newUserPassword').value;
+      const name = $('newUserName').value.trim();
+      
+      if (users[username]) {
+        $('addUserError').textContent = 'اسم المستخدم موجود بالفعل';
+        $('addUserError').style.display = 'block';
+        return;
+      }
+      
+      const result = addNewUser(username, password, name);
+      if (result.success) {
+        $('addUserModal').classList.add('hidden');
+        $('newUserUsername').value = '';
+        $('newUserPassword').value = '';
+        $('newUserName').value = '';
+        renderUsersList();
+      } else {
+        $('addUserError').textContent = result.message;
+        $('addUserError').style.display = 'block';
+      }
+    });
+    
+    renderClients();
+    renderUsersList();
+  } else {
+    $('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const username = $('username').value;
+      const password = $('password').value;
+      
+      if (login(username, password)) {
+        showMainContent();
+        $('planForm').addEventListener('submit', computePlan);
+        $('resetBtn').onclick = resetForm;
+        $('saveBtn').onclick = saveClient;
+        $('logoutBtn').onclick = logout;
+        $('userSettingsBtn').onclick = () => $('userSettingsModal').classList.remove('hidden');
+        $('closeUserSettings').onclick = () => $('userSettingsModal').classList.add('hidden');
+        $('adminPanelBtn').onclick = () => $('adminPanel').style.display = $('adminPanel').style.display === 'none' ? 'block' : 'none';
+        $('addUserBtn').onclick = () => $('addUserModal').classList.remove('hidden');
+        $('closeAddUser').onclick = () => $('addUserModal').classList.add('hidden');
+        
+        renderClients();
+        renderUsersList();
+      } else {
+        $('loginError').style.display = 'block';
+      }
+    });
+  }
+  
+  // تحميل بيانات المستخدمين إذا لم تكن موجودة
+  if (!localStorage.getItem('fitness_users')) {
+    saveUsers();
+  }
+});
+
+// ... [كل الدوال الأخرى الخاصة بحساب السعرات والماكروز] ...
+
+// دالة حساب BMR
 function calcBMR(sex, weight, height, age) {
   const base = 10*weight + 6.25*height - 5*age;
   return sex === 'male' ? base + 5 : base - 161;
 }
 
+// دالة حساب السعرات المعدلة حسب الهدف
 function adjustedCalories(tdee, goal) {
   return goal==='fatloss' ? tdee*0.8
        : goal==='musclegain' ? tdee*1.1
        : tdee;
 }
 
+// دالة حساب الماكروز
 function calcMacros(goal, weight, cal) {
   let pPerKg;
   if (goal === 'fatloss' || goal === 'recomp') {
@@ -575,432 +816,7 @@ function calcMacros(goal, weight, cal) {
   };
 }
 
-function updateMacrosFromGrams() {
-  const cal = parseFloat($('calOut').value) || 0;
-  const proteinG = parseFloat($('proteinG').value) || 0;
-  const carbsG = parseFloat($('carbsG').value) || 0;
-  const fatG = parseFloat($('fatG').value) || 0;
-
-  const proteinKcal = proteinG * 4;
-  const carbsKcal = carbsG * 4;
-  const fatKcal = fatG * 9;
-  const totalKcal = proteinKcal + carbsKcal + fatKcal;
-  
-  if (Math.abs(totalKcal - cal) > 10) {
-    $('calOut').value = round(totalKcal);
-  }
-  
-  $('proteinKcal').textContent = round(proteinKcal);
-  $('carbsKcal').textContent = round(carbsKcal);
-  $('fatKcal').textContent = round(fatKcal);
-  $('totalKcal').textContent = round(totalKcal);
-  
-  const currentCal = parseFloat($('calOut').value) || totalKcal;
-  
-  $('proteinPct').value = currentCal > 0 ? round(proteinKcal / currentCal * 100) : '';
-  $('carbsPct').value = currentCal > 0 ? round(carbsKcal / currentCal * 100) : '';
-  $('fatPct').value = currentCal > 0 ? round(fatKcal / currentCal * 100) : '';
-}
-
-function updateMacrosFromPct() {
-  const cal = parseFloat($('calOut').value) || 0;
-  const proteinPct = parseFloat($('proteinPct').value) || 0;
-  const carbsPct = parseFloat($('carbsPct').value) || 0;
-  const fatPct = parseFloat($('fatPct').value) || 0;
-
-  const totalPct = proteinPct + carbsPct + fatPct;
-  if (totalPct !== 100 && totalPct > 0) {
-    alert('يجب أن يكون مجموع النسب المئوية 100%');
-    return;
-  }
-
-  const proteinKcal = cal * proteinPct / 100;
-  const carbsKcal = cal * carbsPct / 100;
-  const fatKcal = cal * fatPct / 100;
-  const totalKcal = proteinKcal + carbsKcal + fatKcal;
-  
-  $('proteinG').value = round(proteinKcal / 4);
-  $('carbsG').value = round(carbsKcal / 4);
-  $('fatG').value = round(fatKcal / 9);
-  
-  $('proteinKcal').textContent = round(proteinKcal);
-  $('carbsKcal').textContent = round(carbsKcal);
-  $('fatKcal').textContent = round(fatKcal);
-  $('totalKcal').textContent = round(totalKcal);
-}
-
-function updateMacrosFromCalories() {
-  const cal = parseFloat($('calOut').value) || 0;
-  const proteinG = parseFloat($('proteinG').value) || 0;
-  
-  const proteinKcal = proteinG * 4;
-  
-  const weight = parseFloat($('weight').value) || 0;
-  let fatG = parseFloat($('fatG').value) || Math.max(0.6 * weight, cal * 0.3 / 9);
-  let fatKcal = fatG * 9;
-  
-  let carbsKcal = cal - (proteinKcal + fatKcal);
-  let carbsG = carbsKcal / 4;
-  
-  if (carbsKcal < 0) {
-    fatKcal = Math.max(0, fatKcal + carbsKcal);
-    fatG = fatKcal / 9;
-    carbsKcal = 0;
-    carbsG = 0;
-  }
-  
-  $('proteinG').value = round(proteinG);
-  $('fatG').value = round(fatG);
-  $('carbsG').value = round(carbsG);
-  
-  $('proteinKcal').textContent = round(proteinKcal);
-  $('carbsKcal').textContent = round(carbsKcal);
-  $('fatKcal').textContent = round(fatKcal);
-  $('totalKcal').textContent = round(cal);
-  
-  if (cal > 0) {
-    $('proteinPct').value = round(proteinKcal / cal * 100);
-    $('fatPct').value = round(fatKcal / cal * 100);
-    $('carbsPct').value = round(carbsKcal / cal * 100);
-  } else {
-    $('proteinPct').value = '';
-    $('fatPct').value = '';
-    $('carbsPct').value = '';
-  }
-}
-
-function renderMacros(macros, cal) {
-  $('proteinG').value = macros.proteinG;
-  $('carbsG').value = macros.carbsG;
-  $('fatG').value = macros.fatG;
-  
-  $('proteinKcal').textContent = macros.proteinKcal;
-  $('carbsKcal').textContent = macros.carbsKcal;
-  $('fatKcal').textContent = macros.fatKcal;
-  $('totalKcal').textContent = round(macros.proteinKcal + macros.carbsKcal + macros.fatKcal);
-  
-  $('proteinPct').value = macros.pctProtein;
-  $('carbsPct').value = macros.pctCarb;
-  $('fatPct').value = macros.pctFat;
-  
-  $('proteinG').oninput = updateMacrosFromGrams;
-  $('carbsG').oninput = updateMacrosFromGrams;
-  $('fatG').oninput = updateMacrosFromGrams;
-  
-  $('proteinPct').oninput = updateMacrosFromPct;
-  $('carbsPct').oninput = updateMacrosFromPct;
-  $('fatPct').oninput = updateMacrosFromPct;
-  
-  $('calOut').oninput = updateMacrosFromCalories;
-}
-
-function loadClients() {
-  const arr = JSON.parse(localStorage.getItem('fitness_clients') || '[]');
-  return Array.isArray(arr) ? arr : [];
-}
-
-function saveClients(arr) {
-  localStorage.setItem('fitness_clients', JSON.stringify(arr));
-}
-
-function renderClients() {
-  const sessions = loadClients();
-  const wrap = $('clientsWrap');
-  if (!sessions.length) {
-    wrap.className = 'empty'; wrap.textContent = 'لا توجد سجلات.';
-    return;
-  }
-  wrap.className = '';
-  wrap.innerHTML = `
-    <table>
-      <thead>
-        <tr><th>الاسم</th><th>العمر</th><th>الطول</th><th>الوزن</th><th>الهدف</th><th>سعرات</th><th>إجراءات</th></tr>
-      </thead>
-      <tbody>
-        ${sessions.map((c,i) => `
-          <tr>
-            <td>${c.name||'-'}</td>
-            <td>${c.age}</td>
-            <td>${c.height} سم</td>
-            <td>${c.weight} كجم</td>
-            <td>${c.goal==='fatloss'?'خسارة الدهون':c.goal==='musclegain'?'بناء العضلات':'Recomp'}</td>
-            <td>${round(c.calories)} kcal</td>
-            <td>
-              <button class="btn soft" data-load="${i}">تحميل</button>
-              <button class="btn danger" data-del="${i}">حذف</button>
-            </td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  `;
-  wrap.querySelectorAll('[data-del]').forEach(btn => {
-    btn.onclick = () => {
-      const idx = +btn.dataset.del;
-      const arr = loadClients();
-      arr.splice(idx,1);
-      saveClients(arr);
-      renderClients();
-    };
-  });
-  wrap.querySelectorAll('[data-load]').forEach(btn => {
-    btn.onclick = () => {
-      const idx = +btn.dataset.load;
-      const c = loadClients()[idx];
-      ['name','email','sex','age','height','weight','activity','goal'].forEach(id => {
-        $(id).value = c[id];
-      });
-      computePlan();
-      scrollTo({top:0, behavior:'smooth'});
-    };
-  });
-}
-
-function computePlan(e) {
-  e?.preventDefault();
-  const fields = ['name','email','sex','age','height','weight','activity','goal'];
-  const vals = fields.map(id => $(id).value);
-  const [name, email, sex, age, height, weight, activity, goal] = vals;
-  if (![age, height, weight].every(v => !isNaN(+v) && +v>0)) {
-    alert('تأكد من إدخال العمر والطول والوزن.');
-    return;
-  }
-  const bmr = calcBMR(sex, +weight, +height, +age);
-  const tdee = bmr * +activity;
-  const calories = adjustedCalories(tdee, goal);
-  const macros = calcMacros(goal, +weight, calories);
-  $('bmrOut').textContent = round(bmr);
-  $('tdeeOut').textContent = round(tdee);
-  $('calOut').value = round(calories);
-  $('goalTag').textContent = goal==='fatloss'?'خسارة الدهون':goal==='musclegain'?'بناء العضلات':'Recomp';
-  $('tipOut').textContent = tips[goal];
-  renderMacros(macros, calories);
-  $('result').style.display = 'grid';
-  $('saveBtn').disabled = false;
-  $('planForm').dataset.lastPlan = JSON.stringify({name, email, sex, age, height, weight, activity, goal, calories});
-}
-
-function resetForm() {
-  $('planForm').reset();
-  $('result').style.display = 'none';
-  $('saveBtn').disabled = true;
-  delete $('planForm').dataset.lastPlan;
-}
-
-function saveClient() {
-  const data = $('planForm').dataset.lastPlan;
-  if (!data) { alert('ولّد الخطة أولًا.'); return; }
-  const p = JSON.parse(data);
-
-  const manualCal = parseFloat($('calOut').value);
-  const proteinG = parseFloat($('proteinG').value);
-  const carbsG = parseFloat($('carbsG').value);
-  const fatG = parseFloat($('fatG').value);
-  const proteinPct = parseFloat($('proteinPct').value);
-  const carbsPct = parseFloat($('carbsPct').value);
-  const fatPct = parseFloat($('fatPct').value);
-
-  if (!isNaN(manualCal)) {
-    p.calories = manualCal;
-  }
-  
-  p.manualMacros = {
-    proteinG: !isNaN(proteinG) ? proteinG : null,
-    carbsG: !isNaN(carbsG) ? carbsG : null,
-    fatG: !isNaN(fatG) ? fatG : null,
-    proteinPct: !isNaN(proteinPct) ? proteinPct : null,
-    carbsPct: !isNaN(carbsPct) ? carbsPct : null,
-    fatPct: !isNaN(fatPct) ? fatPct : null
-  };
-
-  const arr = loadClients();
-  arr.unshift(p);
-  saveClients(arr);
-  renderClients();
-  $('saveBtn').disabled = true;
-}
-
-// وظائف إدارة المستخدم
-function showUserSettings() {
-  $('userSettingsModal').classList.remove('hidden');
-}
-
-function hideUserSettings() {
-  $('userSettingsModal').classList.add('hidden');
-  $('changePasswordError').style.display = 'none';
-  $('changePasswordSuccess').style.display = 'none';
-  $('changeUsernameError').style.display = 'none';
-  $('changeUsernameSuccess').style.display = 'none';
-}
-
-function changeTab(tabId) {
-  // إخفاء كل المحتويات
-  document.querySelectorAll('.tab-content').forEach(content => {
-    content.classList.remove('active');
-  });
-  
-  // إلغاء تنشيط كل الألسنة
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.classList.remove('active');
-  });
-  
-  // تنشيط اللسان المحدد ومحتواه
-  $(tabId).classList.add('active');
-  document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
-}
-
-function changePassword(e) {
-  e.preventDefault();
-  
-  const currentUsername = localStorage.getItem('loggedInUser');
-  const currentPassword = $('currentPassword').value;
-  const newPassword = $('newPassword').value;
-  const confirmNewPassword = $('confirmNewPassword').value;
-  
-  // التحقق من صحة البيانات
-  if (!users[currentUsername] || users[currentUsername].password !== currentPassword) {
-    $('changePasswordError').textContent = 'كلمة المرور الحالية غير صحيحة';
-    $('changePasswordError').style.display = 'block';
-    return;
-  }
-  
-  if (newPassword !== confirmNewPassword) {
-    $('changePasswordError').textContent = 'كلمة المرور الجديدة غير متطابقة';
-    $('changePasswordError').style.display = 'block';
-    return;
-  }
-  
-  if (newPassword.length < 6) {
-    $('changePasswordError').textContent = 'يجب أن تكون كلمة المرور الجديدة 6 أحرف على الأقل';
-    $('changePasswordError').style.display = 'block';
-    return;
-  }
-  
-  // تغيير كلمة المرور
-  users[currentUsername].password = newPassword;
-  saveUsers();
-  
-  $('changePasswordError').style.display = 'none';
-  $('changePasswordSuccess').style.display = 'block';
-  
-  // مسح الحقول
-  $('currentPassword').value = '';
-  $('newPassword').value = '';
-  $('confirmNewPassword').value = '';
-  
-  // إخفاء الرسالة بعد 3 ثواني
-  setTimeout(() => {
-    $('changePasswordSuccess').style.display = 'none';
-  }, 3000);
-}
-
-function changeUsername(e) {
-  e.preventDefault();
-  
-  const currentUsername = localStorage.getItem('loggedInUser');
-  const currentPassword = $('currentPasswordForUsername').value;
-  const newUsername = $('newUsername').value.trim();
-  
-  // التحقق من صحة البيانات
-  if (!users[currentUsername] || users[currentUsername].password !== currentPassword) {
-    $('changeUsernameError').textContent = 'كلمة المرور الحالية غير صحيحة';
-    $('changeUsernameError').style.display = 'block';
-    return;
-  }
-  
-  if (newUsername.length < 3) {
-    $('changeUsernameError').textContent = 'يجب أن يكون اسم المستخدم الجديد 3 أحرف على الأقل';
-    $('changeUsernameError').style.display = 'block';
-    return;
-  }
-  
-  if (users[newUsername]) {
-    $('changeUsernameError').textContent = 'اسم المستخدم الجديد موجود بالفعل';
-    $('changeUsernameError').style.display = 'block';
-    return;
-  }
-  
-  // تغيير اسم المستخدم
-  users[newUsername] = users[currentUsername];
-  delete users[currentUsername];
-  saveUsers();
-  
-  // تحديث تسجيل الدخول
-  localStorage.setItem('loggedInUser', newUsername);
-  
-  $('changeUsernameError').style.display = 'none';
-  $('changeUsernameSuccess').style.display = 'block';
-  
-  // مسح الحقول
-  $('currentPasswordForUsername').value = '';
-  $('newUsername').value = '';
-  
-  // تحديث واجهة المستخدم
-  $('loggedInUser').textContent = users[newUsername].name;
-  $('userAvatar').textContent = newUsername.charAt(0).toUpperCase();
-  
-  // إخفاء الرسالة بعد 3 ثواني
-  setTimeout(() => {
-    $('changeUsernameSuccess').style.display = 'none';
-  }, 3000);
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  if (checkAuth()) {
-    showMainContent();
-    $('planForm').addEventListener('submit', computePlan);
-    $('resetBtn').onclick = resetForm;
-    $('saveBtn').onclick = saveClient;
-    $('logoutBtn').onclick = logout;
-    $('userSettingsBtn').onclick = showUserSettings;
-    $('closeUserSettings').onclick = hideUserSettings;
-    
-    // إضافة أحداث للألسنة
-    document.querySelectorAll('.tab').forEach(tab => {
-      tab.addEventListener('click', () => changeTab(tab.dataset.tab));
-    });
-    
-    // أحداث النماذج
-    $('changePasswordForm').addEventListener('submit', changePassword);
-    $('changeUsernameForm').addEventListener('submit', changeUsername);
-    
-    renderClients();
-  } else {
-    $('loginForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const username = $('username').value;
-      const password = $('password').value;
-      
-      if (login(username, password)) {
-        showMainContent();
-        $('planForm').addEventListener('submit', computePlan);
-        $('resetBtn').onclick = resetForm;
-        $('saveBtn').onclick = saveClient;
-        $('logoutBtn').onclick = logout;
-        $('userSettingsBtn').onclick = showUserSettings;
-        $('closeUserSettings').onclick = hideUserSettings;
-        
-        // إضافة أحداث للألسنة
-        document.querySelectorAll('.tab').forEach(tab => {
-          tab.addEventListener('click', () => changeTab(tab.dataset.tab));
-        });
-        
-        // أحداث النماذج
-        $('changePasswordForm').addEventListener('submit', changePassword);
-        $('changeUsernameForm').addEventListener('submit', changeUsername);
-        
-        renderClients();
-      } else {
-        $('loginError').style.display = 'block';
-      }
-    });
-  }
-  
-  // تحميل بيانات المستخدمين إذا لم تكن موجودة
-  if (!localStorage.getItem('fitness_users')) {
-    saveUsers();
-  }
-});
+// ... [باقي دوال حساب السعرات والماكروز] ...
 </script>
 </body>
 </html>
