@@ -51,7 +51,7 @@ header {
 }
 
 .logo img {
-  height: 80px; /* تم التعديل هنا من 60px إلى 80px */
+  height: 80px;
   transition: transform 0.3s ease;
 }
 
@@ -379,7 +379,34 @@ footer {
       <input type="password" id="password" required>
     </div>
     <button type="submit" class="btn primary">دخول</button>
+    <button type="button" class="btn soft" id="registerBtn">تسجيل جديد</button>
     <div id="loginError">اسم المستخدم أو كلمة المرور غير صحيحة</div>
+  </form>
+</div>
+
+<!-- نموذج تسجيل مستخدم جديد -->
+<div id="registerScreen" class="login-container hidden">
+  <h2>تسجيل مستخدم جديد</h2>
+  <form id="registerForm" class="login-form">
+    <div>
+      <label for="newUserName">اسم المستخدم</label>
+      <input type="text" id="newUserName" required minlength="3">
+    </div>
+    <div>
+      <label for="newUserFullName">الاسم الكامل</label>
+      <input type="text" id="newUserFullName" required>
+    </div>
+    <div>
+      <label for="newUserPassword">كلمة المرور</label>
+      <input type="password" id="newUserPassword" required minlength="6">
+    </div>
+    <div>
+      <label for="confirmUserPassword">تأكيد كلمة المرور</label>
+      <input type="password" id="confirmUserPassword" required minlength="6">
+    </div>
+    <button type="submit" class="btn primary">تسجيل</button>
+    <button type="button" class="btn soft" id="backToLogin">العودة لتسجيل الدخول</button>
+    <div id="registerError" style="color: var(--danger); display: none;"></div>
   </form>
 </div>
 
@@ -578,14 +605,28 @@ function login(username, password) {
 
 function logout() {
   localStorage.removeItem('loggedInUser');
-  localStorage.removeItem('fitness_clients');
-  window.location.href = window.location.href;
+  window.location.reload();
+}
+
+function register(username, fullName, password) {
+  if (users[username]) {
+    return { success: false, message: 'اسم المستخدم موجود بالفعل' };
+  }
+  
+  users[username] = {
+    password: password,
+    name: fullName
+  };
+  
+  saveUsers();
+  return { success: true };
 }
 
 function showMainContent() {
   const username = localStorage.getItem('loggedInUser');
   if (username && users[username]) {
     $('loginScreen').classList.add('hidden');
+    $('registerScreen').classList.add('hidden');
     $('mainContent').classList.remove('hidden');
     $('loggedInUser').textContent = users[username].name;
     $('userAvatar').textContent = username.charAt(0).toUpperCase();
@@ -757,12 +798,16 @@ function renderMacros(macros, cal) {
 }
 
 function loadClients() {
-  const arr = JSON.parse(localStorage.getItem('fitness_clients') || '[]');
+  const username = localStorage.getItem('loggedInUser');
+  const key = 'fitness_clients_' + username;
+  const arr = JSON.parse(localStorage.getItem(key) || '[]');
   return Array.isArray(arr) ? arr : [];
 }
 
 function saveClients(arr) {
-  localStorage.setItem('fitness_clients', JSON.stringify(arr));
+  const username = localStorage.getItem('loggedInUser');
+  const key = 'fitness_clients_' + username;
+  localStorage.setItem(key, JSON.stringify(arr));
 }
 
 function renderClients() {
@@ -967,6 +1012,15 @@ function changeUsername(e) {
     return;
   }
   
+  // نقل بيانات العملاء إلى المستخدم الجديد
+  const oldClientsKey = 'fitness_clients_' + currentUsername;
+  const newClientsKey = 'fitness_clients_' + newUsername;
+  const clientsData = localStorage.getItem(oldClientsKey);
+  if (clientsData) {
+    localStorage.setItem(newClientsKey, clientsData);
+    localStorage.removeItem(oldClientsKey);
+  }
+  
   users[newUsername] = users[currentUsername];
   delete users[currentUsername];
   saveUsers();
@@ -982,50 +1036,87 @@ function changeUsername(e) {
   }, 3000);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// تهيئة التطبيق
+function initApp() {
+  // تسجيل الدخول
+  $('loginForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const username = $('username').value;
+    const password = $('password').value;
+    if (login(username, password)) {
+      showMainContent();
+      initMainInterface();
+    } else {
+      $('loginError').style.display = 'block';
+    }
+  });
+
+  // تسجيل مستخدم جديد
+  $('registerBtn').onclick = () => {
+    $('loginScreen').classList.add('hidden');
+    $('registerScreen').classList.remove('hidden');
+  };
+
+  $('backToLogin').onclick = () => {
+    $('registerScreen').classList.add('hidden');
+    $('loginScreen').classList.remove('hidden');
+  };
+
+  $('registerForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const username = $('newUserName').value;
+    const fullName = $('newUserFullName').value;
+    const password = $('newUserPassword').value;
+    const confirmPassword = $('confirmUserPassword').value;
+
+    if (password !== confirmPassword) {
+      $('registerError').textContent = 'كلمة المرور غير متطابقة';
+      $('registerError').style.display = 'block';
+      return;
+    }
+
+    const result = register(username, fullName, password);
+    if (result.success) {
+      $('registerScreen').classList.add('hidden');
+      $('loginScreen').classList.remove('hidden');
+      $('registerForm').reset();
+      $('registerError').style.display = 'none';
+    } else {
+      $('registerError').textContent = result.message;
+      $('registerError').style.display = 'block';
+    }
+  });
+
+  // إذا كان المستخدم مسجل الدخول بالفعل
   if (checkAuth()) {
     showMainContent();
-    $('planForm').addEventListener('submit', computePlan);
-    $('resetBtn').onclick = resetForm;
-    $('saveBtn').onclick = saveClient;
-    $('logoutBtn').onclick = logout;
-    $('userSettingsBtn').onclick = showUserSettings;
-    $('closeUserSettings').onclick = hideUserSettings;
-    document.querySelectorAll('.tab').forEach(tab => {
-      tab.addEventListener('click', () => changeTab(tab.dataset.tab));
-    });
-    $('changePasswordForm').addEventListener('submit', changePassword);
-    $('changeUsernameForm').addEventListener('submit', changeUsername);
-    renderClients();
-  } else {
-    $('loginForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const username = $('username').value;
-      const password = $('password').value;
-      if (login(username, password)) {
-        showMainContent();
-        $('planForm').addEventListener('submit', computePlan);
-        $('resetBtn').onclick = resetForm;
-        $('saveBtn').onclick = saveClient;
-        $('logoutBtn').onclick = logout;
-        $('userSettingsBtn').onclick = showUserSettings;
-        $('closeUserSettings').onclick = hideUserSettings;
-        document.querySelectorAll('.tab').forEach(tab => {
-          tab.addEventListener('click', () => changeTab(tab.dataset.tab));
-        });
-        $('changePasswordForm').addEventListener('submit', changePassword);
-        $('changeUsernameForm').addEventListener('submit', changeUsername);
-        renderClients();
-      } else {
-        $('loginError').style.display = 'block';
-      }
-    });
+    initMainInterface();
   }
   
+  // التأكد من وجود بيانات المستخدمين
   if (!localStorage.getItem('fitness_users')) {
     saveUsers();
   }
-});
+}
+
+// تهيئة الواجهة الرئيسية
+function initMainInterface() {
+  $('planForm').addEventListener('submit', computePlan);
+  $('resetBtn').onclick = resetForm;
+  $('saveBtn').onclick = saveClient;
+  $('logoutBtn').onclick = logout;
+  $('userSettingsBtn').onclick = showUserSettings;
+  $('closeUserSettings').onclick = hideUserSettings;
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => changeTab(tab.dataset.tab));
+  });
+  $('changePasswordForm').addEventListener('submit', changePassword);
+  $('changeUsernameForm').addEventListener('submit', changeUsername);
+  renderClients();
+}
+
+// بدء التطبيق
+document.addEventListener('DOMContentLoaded', initApp);
 </script>
 </body>
 </html>
